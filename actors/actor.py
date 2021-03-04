@@ -2,10 +2,10 @@ import inspect
 import logging
 import uuid
 
-import theater
-from theater.util.inspect import (extract_signature, is_class_method,
-                                  is_function_or_method,
-                                  is_static_method)
+import actors
+from actors.util.inspect import (extract_signature, is_class_method,
+                                 is_function_or_method,
+                                 is_static_method)
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,7 @@ class MethodHandler(object):
         new_action = Action(self._actor_proxy._thtr_actor_key,
                             self._method_name,
                             args=tuple(new_args), kwargs=new_kwargs, refs=refs)
-        theater.director.send_action(new_action)
+        actors.director.send_action(new_action)
         if self._with_future:
             return "This would be a Future"
 
@@ -143,7 +143,7 @@ class RoleClass(object):
     """An actor role class.
 
     This class replaces decorated role classes and can be
-    used to obtain proxies to theater of that role.
+    used to obtain proxies to actors of that role.
     """
 
     def __init__(cls, name, bases, attr):
@@ -216,9 +216,9 @@ class RoleClass(object):
         meta = self.__thtr_metadata__
         actor_key = meta.class_id + ':' + str(uuid.uuid4())
 
-        theater.director.new_actor(actor_key,
-                                   meta,
-                                   args, kwargs)
+        actors.director.new_actor(actor_key,
+                                  meta,
+                                  args, kwargs)
 
         proxy = ActorProxy(
             actor_key,
@@ -277,7 +277,7 @@ class ActorProxy(object):
         setattr(self, 'pls_stop', self.__stop)
 
     def __stop(self):
-        theater.director.send_stop(self._thtr_actor_key)
+        actors.director.send_stop(self._thtr_actor_key)
 
     def _to_weak(self):
         return WeakRef(self._thtr_actor_key, self._thtr_method_signatures,
@@ -341,6 +341,8 @@ class Action(object):
         method = getattr(instance, self.method_name)
         return method(*self.args, **self.kwargs)
 
+    def __repr__(self):
+        return f"Action({self.actor_key}, {self.method_name}, {self.action_id})"
 
 def enrich_class(cls):
     # check if cls is already an enriched class.
@@ -371,6 +373,6 @@ def enrich_class(cls):
 
 def make_role_class(cls, class_id):
     if class_id is None:
-        class_id = 'theater:' + cls.__name__
+        class_id = 'actors:' + cls.__name__
     Enriched = enrich_class(cls)
     return RoleClass._thtr_from_enriched_class(Enriched, class_id)

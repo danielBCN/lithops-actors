@@ -1,7 +1,7 @@
 import inspect
 
-import theater.actor
-from theater.director import start, shutdown
+import actors.actor
+from actors.director import start, shutdown
 
 
 def make_decorator(class_id=None):
@@ -9,9 +9,9 @@ def make_decorator(class_id=None):
         if inspect.isclass(cls):
             # check extra parameters (in the future)
 
-            return theater.actor.make_role_class(cls, class_id)
+            return actors.actor.make_role_class(cls, class_id)
 
-        raise TypeError("The @theater.remote decorator must be applied to "
+        raise TypeError("The @actors.remote decorator must be applied to "
                         "a class.")
     return class_decorator
 
@@ -22,11 +22,11 @@ def remote(*args, **kwargs):
         return make_decorator()(args[0])
 
     # Parse the keyword arguments from the decorator.
-    error_string = ("The @theater.remote decorator must be applied either "
+    error_string = ("The @actors.remote decorator must be applied either "
                     "with no arguments and no parentheses, or it must be "
                     "applied using some of the arguments: "
                     "'class_id', "
-                    "like in @theater.remote(class_id='userclassid').")
+                    "like in @actors.remote(class_id='userclassid').")
     assert len(args) == 0 and len(kwargs) > 0, error_string
     for key in kwargs:
         assert key in [

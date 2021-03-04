@@ -1,9 +1,9 @@
 import time
 
-import theater
+import actors
 
 
-@theater.remote
+@actors.remote
 class Counter(object):
     def __init__(self):
         self.value = 0
@@ -24,15 +24,15 @@ class Counter(object):
         proxy.get_counter.remote()
 
     def check_proxy(self):
-        # proxy = theater.role(Counter).for_key(self.key)
+        # proxy = actors.role(Counter).for_key(self.key)
         proxy = Counter.for_key(self.key)
         print(proxy)
         proxy.get_counter.remote()
 
 
 def main():
-    theater.start()
-    # counter_actor = theater.role(Counter).remote()
+    actors.start()
+    # counter_actor = actors.role(Counter).remote()
     counter_actor = Counter.remote()
 
     [counter_actor.increment.remote() for _ in range(10)]
@@ -46,7 +46,7 @@ def main():
     counter_actor.check_proxy.remote()
 
     time.sleep(5)
-    theater.shutdown()
+    actors.shutdown()
 
 
 if __name__ == '__main__':
