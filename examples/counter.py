@@ -25,9 +25,9 @@ class Counter(object):
 
     def check_proxy(self):
         # proxy = actors.role(Counter).for_key(self.key)
-        proxy = Counter.for_key(self.key)
-        print(proxy)
-        proxy.get_counter.remote()
+        # proxy = Counter.for_key(self.key)
+        # print(proxy)
+        self.proxy.get_counter.remote()
 
 
 def main():

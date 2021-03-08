@@ -27,16 +27,16 @@ def send_action(action):
     return None
 
 
-def actor_process(actor_type, actor_key,
+def actor_process(actor_type, weak_ref,
                   queue, directory, event,
                   args, kwargs):
     # Create an instance without __init__ called.
     actor_class = actor_type
     actor_instance = actor_class.__new__(actor_class)
-    # actor_instance.class_id = class_meta.class_id
-    # actor_instance.proxy =
+    actor_instance.class_id = weak_ref._thtr_class_id
+    actor_instance.proxy = weak_ref.build_proxy()
 
-    actor_instance.key = actor_key
+    actor_instance.key = weak_ref._thtr_actor_key
     actor_instance.__init__(*args, **kwargs)
     global actor_directory
     actor_directory = directory
@@ -46,7 +46,7 @@ def actor_process(actor_type, actor_key,
         action = queue.get()
         # print(action)
         if action == 'pls stop':
-            print(f"Stopping actor {actor_key}")
+            print(f"Stopping actor {weak_ref._thtr_actor_key}")
             break
         action.call(actor_instance)
 
@@ -59,12 +59,12 @@ class Director(object):
         self.manager = mp.Manager()
         self.actors = self.manager.dict()
 
-    def new_actor(self, class_meta, actor_key, args, kwargs):
+    def new_actor(self, actor_type, weak_ref, args, kwargs):
         actor_queue = mp.Queue()
-        self.actors[actor_key] = actor_queue
+        self.actors[weak_ref._thtr_actor_key] = actor_queue
         event = self.manager.Event()
         actor_ps = mp.Process(target=actor_process,
-                              args=(class_meta, actor_key,
+                              args=(actor_type, weak_ref,
                                     actor_queue, self.actors, event,
                                     args, kwargs))
         actor_ps.start()
@@ -122,11 +122,10 @@ def shutdown():
     print("Shut down")
 
 
-def new_actor(actor_key, meta, args, kwargs):
+def new_actor(meta, weak_ref, args, kwargs):
     global global_director
     if global_director is None:
         raise Exception("Not started, can't create actor")
         # TODO: actors cannot be created from other actors
     actor_type = meta.enriched_class.__thtr_actor_class__
-    # proxy = meta.proxy_crafter
-    global_director.new_actor(actor_type, actor_key, args, kwargs)
+    global_director.new_actor(actor_type, weak_ref, args, kwargs)

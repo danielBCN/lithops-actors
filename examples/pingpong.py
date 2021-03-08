@@ -38,10 +38,8 @@ class Judge(object):
         self.pings = num_pings
         self.pinger = pinger
         self.ponger = ponger
-        self.pinger.set_up.remote(self.pings,
-                                  Judge.for_key(self.key),
-                                  self.ponger)
-        self.ponger.set_up.remote(Judge.for_key(self.key), self.pinger)
+        self.pinger.set_up.remote(self.pings, self.proxy, self.ponger)
+        self.ponger.set_up.remote(self.proxy, self.pinger)
 
         self.ping_ok = False
         self.pong_ok = False

@@ -216,16 +216,16 @@ class RoleClass(object):
         meta = self.__thtr_metadata__
         actor_key = meta.class_id + ':' + str(uuid.uuid4())
 
-        actors.director.new_actor(actor_key,
-                                  meta,
-                                  args, kwargs)
-
         proxy = ActorProxy(
             actor_key,
             meta.method_meta.signatures,
             meta.class_name,
             meta.class_id
         )
+        weak_ref = proxy._to_weak()
+
+        actors.director.new_actor(meta, weak_ref,
+                                  args, kwargs)
 
         return proxy
 
@@ -248,6 +248,9 @@ class WeakRef(object):
         self._thtr_method_signatures = methods_signs
         self._thtr_class_name = class_name
         self._thtr_class_id = class_id
+
+    def build_proxy(self):
+        return ActorProxy._from_weak(self)
 
 
 class ActorProxy(object):
@@ -344,6 +347,7 @@ class Action(object):
     def __repr__(self):
         return f"Action({self.actor_key}, {self.method_name}, {self.action_id})"
 
+
 def enrich_class(cls):
     # check if cls is already an enriched class.
     if hasattr(cls, '__thtr_actor_class__'):
@@ -373,6 +377,6 @@ def enrich_class(cls):
 
 def make_role_class(cls, class_id):
     if class_id is None:
-        class_id = 'actors:' + cls.__name__
+        class_id = 'lithops:' + cls.__name__
     Enriched = enrich_class(cls)
     return RoleClass._thtr_from_enriched_class(Enriched, class_id)
