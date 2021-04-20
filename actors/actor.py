@@ -23,7 +23,6 @@ class MethodHandler(object):
 
     def remote(self, *args, **kwargs):
         # TODO: we could let the user define the action id
-        # TODO: check args for self references
         logger.debug(f"Calling method '{self._method_name}'"
                      f" on actor '{self._actor_proxy}'")
 
@@ -326,6 +325,7 @@ class Action(object):
         self.refs = refs
 
     def call(self, instance):
+        """Run this action on the *instance*"""
         if self.refs:
             args = list(self.args)
             new_args = []
@@ -340,7 +340,6 @@ class Action(object):
                     value = ActorProxy._from_weak(value)
                 new_kwargs[key] = value
             self.kwargs = new_kwargs
-        """Run this action on the *instance*"""
         method = getattr(instance, self.method_name)
         return method(*self.args, **self.kwargs)
 

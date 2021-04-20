@@ -1,7 +1,10 @@
-# import multiprocessing as mp
+import logging
+
 import lithops.multiprocessing as mp
 
 actor_directory = {}
+
+logger = logging.getLogger(__name__)
 
 
 def send_stop(actor_key):
@@ -41,12 +44,12 @@ def actor_process(actor_type, weak_ref,
     global actor_directory
     actor_directory = directory
 
-    event.set()     # tell father i'm ready
+    event.set()  # tell father i'm ready
     while True:
         action = queue.get()
         # print(action)
         if action == 'pls stop':
-            print(f"Stopping actor {weak_ref._thtr_actor_key}")
+            logger.debug(f"Stopping actor {weak_ref._thtr_actor_key}")
             break
         action.call(actor_instance)
 
@@ -105,9 +108,9 @@ global_director = None
 def start():
     global global_director
     if global_director is not None:
-        print("Already started")
+        logger.info("Already started")
         return
-    print("Starting Lithops Actors")
+    logger.info("Starting Lithops Actors")
     global_director = Director()
     global_director.run()
 
@@ -115,11 +118,11 @@ def start():
 def shutdown():
     global global_director
     if global_director is None:
-        print("Not started, can't shutdown")
+        logger.info("Not started, can't shutdown")
         return
-    print("Stopping Lithops Actors director")
+    logger.info("Stopping Lithops Actors director")
     global_director.stop()
-    print("Shut down")
+    logger.info("Shut down")
 
 
 def new_actor(meta, weak_ref, args, kwargs):
