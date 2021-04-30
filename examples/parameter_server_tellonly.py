@@ -9,9 +9,6 @@ import numpy as np
 import actors
 
 
-# TODO: Change this to only tells
-
-
 def get_data_loader():
     """Safely downloads data. Returns training/validation set dataloader."""
     mnist_transforms = transforms.Compose(
@@ -89,11 +86,12 @@ class ConvNet(nn.Module):
 
 @actors.remote
 class ParameterServer(object):
-    def __init__(self, lr):
+    def __init__(self, lr, trainer):
         self.model = ConvNet()
         self.optimizer = torch.optim.SGD(self.model.parameters(), lr=lr)
+        self.trainer = trainer
 
-    def apply_gradients(self, *gradients):  # gradients is a list of futures
+    def apply_gradients(self, *gradients):
         summed_gradients = [
             np.stack(gradient_zip).sum(axis=0)
             for gradient_zip in zip(*gradients)
@@ -101,19 +99,25 @@ class ParameterServer(object):
         self.optimizer.zero_grad()
         self.model.set_gradients(summed_gradients)
         self.optimizer.step()
-        return self.model.get_weights()
+        # return self.model.get_weights()
+        self.trainer.finish_iteration.remote(self.model.get_weights())
 
-    def get_weights(self):
-        return self.model.get_weights()
+    # def get_weights(self):
+    #     return self.model.get_weights()
+
+    def send_weights_to(self, workers):
+        for worker in workers:
+            worker.compute_gradients.remote(self.model.get_weights())
 
 
 @actors.remote
 class DataWorker(object):
-    def __init__(self):
+    def __init__(self, trainer):
         self.model = ConvNet()
         self.data_iterator = iter(get_data_loader()[0])
+        self.trainer = trainer
 
-    def compute_gradients(self, weights):   # weights is a future
+    def compute_gradients(self, weights):
         self.model.set_weights(weights)
         try:
             data, target = next(self.data_iterator)
@@ -124,7 +128,48 @@ class DataWorker(object):
         output = self.model(data)
         loss = F.nll_loss(output, target)
         loss.backward()
-        return self.model.get_gradients()
+        # return self.model.get_gradients()
+        self.trainer.send_gradient.remote(self.model.get_gradients())
+
+
+@actors.remote
+class TrainSupervisor(object):
+    def set_up(self, ps_ref, workers, iterations):
+        self.ps = ps_ref
+        self.workers = workers
+        self.iterations = iterations
+        self.current_iter = 0
+
+        self.model = ConvNet()
+        self.test_loader = get_data_loader()[1]
+
+        print("Running synchronous parameter server training.")
+        self.run_iteration()
+
+    def run_iteration(self):
+        self.gradients = []
+        self.ps.send_weights_to.remote(self.workers)
+
+    def send_gradient(self, gradient):
+        self.gradients.append(gradient)
+        if len(self.gradients) == len(self.workers):
+            # Calculate update after all gradients are available.
+            self.ps.apply_gradients.remote(*self.gradients)
+
+    def finish_iteration(self, new_weights):
+        if self.current_iter % 10 == 0:
+            # Evaluate the current model.
+            self.model.set_weights(new_weights)
+            self.accuracy = evaluate(self.model, self.test_loader)
+            print("Iter {}: \taccuracy is {:.1f}".format(self.current_iter,
+                                                         self.accuracy))
+
+        self.current_iter += 1
+        if self.current_iter < self.iterations:
+            self.run_iteration()
+        else:
+            print("Final accuracy is {:.1f}.".format(self.accuracy))
+            self.proxy.pls_stop()
 
 
 def main_sync():
@@ -132,30 +177,17 @@ def main_sync():
     num_workers = 2
 
     actors.start()
-    ps = ParameterServer.remote(1e-2)
-    workers = [DataWorker.remote() for i in range(num_workers)]
 
-    model = ConvNet()
-    test_loader = get_data_loader()[1]
+    trainer = TrainSupervisor.remote()
 
-    print("Running synchronous parameter server training.")
-    current_weights = ps.get_weights.remote()
-    for i in range(iterations):
-        gradients = [
-            worker.compute_gradients.remote(current_weights) for worker in
-            workers
-        ]
-        # Calculate update after all gradients are available.
-        current_weights = ps.apply_gradients.remote(*gradients)
+    ps = ParameterServer.remote(1e-2, trainer)
+    workers = [DataWorker.remote(trainer) for _ in range(num_workers)]
 
-        if i % 10 == 0:
-            # Evaluate the current model.
-            model.set_weights(actors.get(current_weights))
-            accuracy = evaluate(model, test_loader)
-            print("Iter {}: \taccuracy is {:.1f}".format(i, accuracy))
+    trainer.set_up.remote(ps, workers, iterations)
 
-    print("Final accuracy is {:.1f}.".format(accuracy))
-    # Clean up Ray resources and processes before the next example.
+    import time
+    time.sleep(120)
+    # Clean up resources and processes.
     actors.shutdown()
 
 
